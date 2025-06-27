@@ -300,4 +300,4 @@
       :with-new-term	(keymap-local-set "C-M-z" #'my/ansi-term)
       :after-make-run	"ranger; exit\n")))
 
-(provide mk-togglers)
+(provide 'mk-togglers)
