@@ -114,13 +114,15 @@
 				&rest args
 				&key
 				  (make-form		'(switch-to-buffer _buf))
+				  (with-toggle-let	'())
 				  (display-action	''((display-buffer-full-frame)
 							   (dedicated . t)))
 				  &allow-other-keys)
   `(mk/toggler ,name ,buffer-name
-     :make-form		,make-form
-     :with-toggle-let	((display-buffer-overriding-action ,display-action))
-     ,@args))
+	       :make-form		,make-form
+	       :with-toggle-let	((display-buffer-overriding-action ,display-action)
+				 ,@with-toggle-let)
+	       ,@args))
 
 (when nil
   (define-key global-map (kbd "C-z")
@@ -137,14 +139,16 @@
 							   (file-truename default-directory)
 							   (file-truename _buf))))
 				 (make-form		'(dired _buf))
+				 (with-toggle-let	'())
 				 (display-action	''((display-buffer-at-bottom)
 							   (dedicated . t)))
 				 &allow-other-keys)
   `(mk/toggler ,name ,directory
-     :hide-if		,hide-if
-     :make-form		,make-form
-     :with-toggle-let	((display-buffer-overriding-action ,display-action))
-     ,@args))
+	       :hide-if		,hide-if
+	       :make-form		,make-form
+	       :with-toggle-let	((display-buffer-overriding-action ,display-action)
+				 ,@with-toggle-let)
+	       ,@args))
 
 (when nil
   (define-key global-map (kbd "C-z")
@@ -160,14 +164,16 @@
 							   (file-truename (buffer-file-name))
 							   (file-truename _buf))))
 				(make-form		'(find-file _buf))
+				(with-toggle-let	'())
 				(display-action	''((display-buffer-at-bottom)
 						   (dedicated . t)))
 				&allow-other-keys)
   `(mk/toggler ,name ,file-path
-     :hide-if		,hide-if
-     :make-form		,make-form
-     :with-toggle-let	((display-buffer-overriding-action ,display-action))
-     ,@args))
+	       :hide-if		,hide-if
+	       :make-form		,make-form
+	       :with-toggle-let	((display-buffer-overriding-action ,display-action)
+				 ,@with-toggle-let)
+	       ,@args))
 
 (when nil
   (define-key global-map (kbd "C-z")
@@ -180,17 +186,20 @@
 (cl-defmacro mk/term---toggler (name directory
 				&rest args
 				&key
-				  (hide-if		'(and (derived-mode-p 'term-mode 'comint-mode)
-							  (equal
-							   (file-truename default-directory)
-							   (file-truename _buf))))
+				  (hide-if		'(derived-mode-p 'term-mode 'comint-mode))
 				  (find-form		'(car (remove-if-not
 							       (lambda (bf)
 								 (with-current-buffer bf
 								   (and (derived-mode-p 'term-mode) 
-									(equal (file-truename (or _buf
-												  default-directory))
-									       (file-truename default-directory)))))
+									(if (file-remote-p (file-truename (or _buf
+													      default-directory)))
+									    (with-parsed-tramp-file-name (file-truename (or _buf
+															    default-directory)) _buf
+									      (with-parsed-tramp-file-name (file-truename default-directory) _def
+										(equal _buf-host  _def-host)))
+									  (equal (file-truename (or _buf
+												    default-directory))
+										 (file-truename default-directory))))))
 							       (buffer-list))))
 				  (make-form		'(let ((term-args (if (file-remote-p _buf)
 									      `("-c" ,(with-parsed-tramp-file-name (file-truename _buf) tramp
@@ -226,43 +235,45 @@
 				  (after-show-run	"")
 				  (before-hide-run	"")
 				  (after-hide-run	"")
+				  (with-toggle-let	'())
 				  (display-action	''((display-buffer-at-bottom)
 							   (dedicated . t)))
 				  &allow-other-keys)
   `(mk/toggler ,name ,directory
-     :hide-if		,hide-if
-     :find-form		,find-form
-     :make-form		,make-form
-     :with-new-buffer	(progn
-			  ,with-new-buffer
-			  ,with-new-term)
-     :with-buffer	(progn
-			  ,with-buffer
-			  ,with-term)
-     :after-make	(progn
-			  ;; ,with-new-term
-			  (let ((proc (get-buffer-process _new-buffer)))
-			    (term-send-string proc ,after-make-run))
-			  ,after-make)
-     :before-show	(progn
-			  (let ((proc (get-buffer-process _found-buffer)))
-			    (term-send-string proc ,before-show-run))
-			  ,before-show)
-     :after-show	(progn
-			  ;; ,with-term
-			  (let ((proc (get-buffer-process _found-buffer)))
-			    (term-send-string proc ,after-show-run))
-			  ,after-show)
-     :before-hide	(progn ;before-hide
-			  (let ((proc (get-buffer-process (current-buffer))))
-			    (term-send-string proc ,before-hide-run))
-			  ,before-hide)
-     :after-hide	(progn
-			  (let ((proc (get-buffer-process _found-buffer)))
-			    (term-send-string proc ,after-hide-run))
-			  ,after-hide)
-     :with-toggle-let	((display-buffer-overriding-action ,display-action))
-     ,@args))
+	       :hide-if		,hide-if
+	       :find-form		,find-form
+	       :make-form		,make-form
+	       :with-new-buffer	(progn
+				  ,with-new-buffer
+				  ,with-new-term)
+	       :with-buffer	(progn
+				  ,with-buffer
+				  ,with-term)
+	       :after-make	(progn
+				  ;; ,with-new-term
+				  (let ((proc (get-buffer-process _new-buffer)))
+				    (term-send-string proc ,after-make-run))
+				  ,after-make)
+	       :before-show	(progn
+				  (let ((proc (get-buffer-process _found-buffer)))
+				    (term-send-string proc ,before-show-run))
+				  ,before-show)
+	       :after-show	(progn
+				  ;; ,with-term
+				  (let ((proc (get-buffer-process _found-buffer)))
+				    (term-send-string proc ,after-show-run))
+				  ,after-show)
+	       :before-hide	(progn ;before-hide
+				  (let ((proc (get-buffer-process (current-buffer))))
+				    (term-send-string proc ,before-hide-run))
+				  ,before-hide)
+	       :after-hide	(progn
+				  (let ((proc (get-buffer-process _found-buffer)))
+				    (term-send-string proc ,after-hide-run))
+				  ,after-hide)
+	       :with-toggle-let	((display-buffer-overriding-action ,display-action)
+				 ,@with-toggle-let)
+	       ,@args))
 
 (cl-defmacro mk/term-toggler (name directory
 			      &rest args
