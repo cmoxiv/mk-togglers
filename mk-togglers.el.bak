@@ -689,202 +689,114 @@ Examples:
 		      ))
 
 
-(cl-defmacro mk/vterm---toggler
+(cl-defmacro mk/vterm-toggler
     (name directory
      &rest args
      &key
-       (hide-if		'(derived-mode-p 'vterm-mode))
-       (find-form	'(car (seq-filter
-			       (lambda (bf)
-				 (with-current-buffer bf
-				   (and (derived-mode-p 'vterm-mode)
-					(string-match-p "^\\*vterm:" (buffer-name)))))
-			       (buffer-list))))
-       (make-form	'(let ((default-directory _buf))
-			   (vterm)
-			   (current-buffer)))
-       (with-new-buffer	'(let* ((venv-path (or
+       (hide-if '(derived-mode-p 'vterm-mode))
+       (find-form '(car (seq-filter
+			 (lambda (bf)
+			   (with-current-buffer bf
+			     (and (derived-mode-p
+				   'vterm-mode)
+				  (string-match-p
+				   "^\\*vterm:" (buffer-name)))))
+			 (buffer-list))))
+       (make-form '(let ((default-directory _buf))
+		    (vterm)
+		    (current-buffer)))
+       (with-new-buffer '(let* ((venv-path (or
 					    (bound-and-true-p pyvenv-virtual-env)
-					    (let ((venv-dir (expand-file-name ".venv" _buf)))
-					      (when (file-directory-p venv-dir)
+					    (let
+						((venv-dir (expand-file-name ".venv" _buf)))
+					      (when
+						  (file-directory-p venv-dir)
 						venv-dir))))
-				(venv-name (if venv-path
+				(venv-name (if
+					       venv-path
 					       (file-name-nondirectory
 						(directory-file-name venv-path))
 					     "none")))
-			   (rename-buffer
-			    (format "*vterm:%s:%s*"
-				    venv-name
-				    (abbreviate-file-name _buf))
-			    t)
-			   (when venv-path
-			     (vterm-send-string
-			      (format "source %s/bin/activate\n" venv-path)))
-			   ,with-new-vterm))
-       (after-make	'(when (and (boundp 'vterm--process)
-				    vterm--process
-				    (process-live-p vterm--process))
-			   (unless (string-empty-p ,after-make-run)
-			     (vterm-send-string ,after-make-run))))
-       (before-show	'(when (and (boundp 'vterm--process)
-				    vterm--process
-				    (process-live-p vterm--process))
-			   (unless (string-empty-p ,before-show-run)
-			     (vterm-send-string ,before-show-run))))
-       (after-show	'(when (and (boundp 'vterm--process)
-				    vterm--process
-				    (process-live-p vterm--process))
-			   (vterm-send-string (format "cd %s\n" _buf))
-			   (when-let ((venv-path (or
-						  (bound-and-true-p pyvenv-virtual-env)
-						  (let ((venv-dir (expand-file-name ".venv" _buf)))
-						    (when (file-directory-p venv-dir)
-						      venv-dir)))))
-			     (vterm-send-string
-			      (format "source %s/bin/activate\n" venv-path)))
-			   (unless (string-empty-p ,after-show-run)
-			     (vterm-send-string ,after-show-run))
-			   ,with-vterm))
-       (before-hide	'(when (and (boundp 'vterm--process)
-				    vterm--process
-				    (process-live-p vterm--process))
-			   (unless (string-empty-p ,before-hide-run)
-			     (vterm-send-string ,before-hide-run))))
-       (after-hide	'(when (and (boundp 'vterm--process)
-				    vterm--process
-				    (process-live-p vterm--process))
-			   (unless (string-empty-p ,after-hide-run)
-			     (vterm-send-string ,after-hide-run))))
-       (with-vterm	'(always))
-       (with-new-vterm	'(always))
-       (after-make-run	"")
-       (before-show-run	"")
-       (after-show-run	"")
-       (before-hide-run	"")
-       (after-hide-run	"")
-       (with-toggle-let	'())
-       (display-action	''((display-buffer-at-bottom)
-			   (dedicated . t)))
+			  (rename-buffer
+			   (format "*vterm:%s:%s*"
+			    venv-name
+			    (abbreviate-file-name _buf))
+			   t)
+			  (when venv-path
+			    (vterm-send-string
+			     (format "source
+%s/bin/activate\n" venv-path)))))
+       (after-show '(when (and (boundp
+				'vterm--process)
+			   vterm--process
+			   (process-live-p
+			    vterm--process))
+		     (vterm-send-string (format "cd
+%s\n" _buf))
+		     (when-let ((venv-path (or
+					    (bound-and-true-p pyvenv-virtual-env)
+					    (let
+						((venv-dir (expand-file-name ".venv" _buf)))
+					      (when
+						  (file-directory-p venv-dir)
+						venv-dir)))))
+		       (vterm-send-string
+			(format "source
+%s/bin/activate\n" venv-path)))))
+       (with-toggle-let '())
+       (display-action ''((display-buffer-at-bottom)
+			  (dedicated . t)))
        &allow-other-keys)
-  "Internal implementation for vterm togglers with virtual environment support.
-
-This is an internal macro used by `mk/vterm-toggler'. Users should typically
-use `mk/vterm-toggler' instead of calling this directly.
-
-Creates a vterm toggler function named NAME for DIRECTORY with automatic
-Python virtual environment detection and activation.
-
-NAME is the symbol name for the generated interactive function.
-DIRECTORY is the directory path (local or remote TRAMP path).
-
-Special keyword arguments for vterm control:
-  :with-vterm       - Code to run in context of existing vterm.
-  :with-new-vterm   - Code to run in context of newly created vterm.
-  :after-make-run   - Shell command string to run after creating vterm.
-  :before-show-run  - Shell command string to run before showing vterm.
-  :after-show-run   - Shell command string to run after showing vterm.
-  :before-hide-run  - Shell command string to run before hiding vterm.
-  :after-hide-run   - Shell command string to run after hiding vterm.
-
-Virtual environment handling:
-- Checks for pyvenv-virtual-env or .venv directory
-- Renames buffer as *vterm:<venv-name>:<path>*
-- Sends activation commands via vterm-send-string
-
-See `mk/vterm-toggler' for the public interface and usage examples."
-  `(mk/toggler ,name ,directory
-	       :hide-if		,hide-if
-	       :find-form	,find-form
-	       :make-form	,make-form
-	       :with-new-buffer	,with-new-buffer
-	       :after-make	,after-make
-	       :before-show	,before-show
-	       :after-show	,after-show
-	       :before-hide	,before-hide
-	       :after-hide	,after-hide
-	       :with-toggle-let	((display-buffer-overriding-action ,display-action)
-				 ,@with-toggle-let)
-	       ,@args))
-
-(cl-defmacro mk/vterm-toggler (name directory
-			       &rest args
-			       &key
-				 (with-vterm		'(always))
-				 (with-new-vterm	'(always))
-				 (after-make-run	"")
-				 (before-show-run	"")
-				 (after-show-run	"")
-				 (before-hide-run	"")
-				 (after-hide-run	"")
-				 (display-action	''((display-buffer-at-bottom)
-							   (dedicated . t)))
-				 &allow-other-keys)
   "Create a vterm toggler function named NAME for DIRECTORY.
-
 This is a wrapper around `mk/toggler' specialized for toggling vterm
 buffers with automatic Python virtual environment detection and activation.
-
 NAME is the symbol name for the generated interactive function.
-DIRECTORY is the directory path. Use `default-directory' for current
-          buffer's directory.
-
+DIRECTORY is the directory path. Use `default-directory' for current buffer's
+directory.
 Keyword arguments:
-  :with-vterm       - Code to run in existing vterm context.
-  :with-new-vterm   - Code to run in newly created vterm context.
-  :after-make-run   - Shell command string to run after creating vterm.
-                      Example: \"source .venv/bin/activate\\n\"
-  :before-show-run  - Shell command string to run before showing vterm.
-  :after-show-run   - Shell command string to run after showing vterm.
-                      Example: \"clear && git status\\n\"
-  :before-hide-run  - Shell command string to run before hiding vterm.
-  :after-hide-run   - Shell command string to run after hiding vterm.
-  :display-action   - Display action controlling where vterm appears.
-                      Default: Bottom of frame, dedicated window.
-
+:hide-if
+- Condition to hide the vterm buffer.
+Default: In vterm-mode.
+:find-form
+- How to find existing vterm buffer.
+Default: Find any vterm buffer with name matching
+*vterm:*.
+:make-form
+- How to create the vterm buffer.
+Default: (vterm) in the target directory.
+:with-new-buffer - Code to run in newly created vterm.
+Default: Rename buffer and activate venv.
+:after-show
+- Code to run after showing vterm.
+Default: cd to directory and activate venv.
+:display-action
+- Display action controlling where vterm appears.
+Default: Bottom of frame, dedicated window.
+:with-toggle-let - Additional variable bindings for toggle operation.
 All keyword arguments from `mk/toggler' are also accepted.
-
 VIRTUAL ENVIRONMENT SUPPORT:
-The toggler automatically detects and activates Python virtual environments by:
+The toggler automatically detects and activates Python virtual environments
+by:
 - Checking pyvenv-virtual-env variable (if using pyvenv.el)
 - Looking for .venv directory in the target directory
 - Naming buffer as *vterm:<venv-name>:<path>*
 - Sending activation command to vterm
-
-SHELL COMMANDS:
-The *-run keyword arguments accept shell command strings that are sent
-to the vterm at various lifecycle points. Always end commands with \\n.
-
-Examples:
-
-  Basic vterm in current directory:
-    (mk/vterm-toggler my-vterm-toggle default-directory)
-    (global-set-key (kbd \"C-c v\") \\='my-vterm-toggle)
-
-  Development vterm with virtual environment:
-    (mk/vterm-toggler my-dev-vterm \"~/projects/myapp/\"
-      :after-make-run \"source .venv/bin/activate\\n\"
-      :display-action \\='((display-buffer-at-bottom)
-                        (window-height . 25)))
-
-  Vterm running ranger file manager:
-    (mk/vterm-toggler my-ranger-toggle default-directory
-      :after-make-run \"ranger\\n\"
-      :display-action \\='((display-buffer-full-frame)))
-
-  Git vterm with status on show:
-    (mk/vterm-toggler my-git-vterm default-directory
-      :after-show-run \"clear && git status\\n\")"
-  `(mk/vterm---toggler ,name ,directory
-		       :with-vterm	,with-vterm
-		       :with-new-vterm	,with-new-vterm
-		       :after-make-run	,after-make-run
-		       :before-show-run	,before-show-run
-		       :after-show-run	,after-show-run
-		       :before-hide-run	,before-hide-run
-		       :after-hide-run	,after-hide-run
-		       :display-action	,display-action
-		       ,@args))
-
+Example:
+(mk/vterm-toggler my-vterm-toggle default-directory)
+(global-set-key (kbd \"C-c v\") 'my-vterm-toggle)
+(mk/vterm-toggler my-dev-vterm \"~/projects/myapp/\"
+:display-action '((display-buffer-at-bottom)
+(window-height . 25)))"
+  `(mk/toggler ,name ,directory
+	       :hide-if ,hide-if
+	       :find-form ,find-form
+	       :make-form ,make-form
+	       :with-new-buffer ,with-new-buffer
+	       :after-show ,after-show
+	       :with-toggle-let ((display-buffer-overriding-action
+				  ,display-action)
+				 ,@with-toggle-let)
+	       ,@args))
 
 (provide 'mk-togglers)
 
