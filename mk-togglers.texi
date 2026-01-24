@@ -1,0 +1,812 @@
+\input texinfo    @c -*- texinfo -*-
+@c %**start of header
+@setfilename mk-togglers.info
+@settitle mk-togglers Manual
+@documentencoding UTF-8
+@documentlanguage en
+@c %**end of header
+
+@copying
+This manual is for mk-togglers (version 0.1.0), a library for creating
+intelligent buffer togglers with memory and context awareness.
+
+Copyright @copyright{} 2025 cMo
+
+@quotation
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the MIT License.
+@end quotation
+@end copying
+
+@dircategory Emacs
+@direntry
+* mk-togglers: (mk-togglers). Intelligent buffer togglers with memory.
+@end direntry
+
+@titlepage
+@title mk-togglers Manual
+@subtitle Create intelligent buffer togglers with memory
+@author cMo
+
+@page
+@vskip 0pt plus 1filll
+@insertcopying
+@end titlepage
+
+@contents
+
+@ifnottex
+@node Top
+@top mk-togglers
+
+This manual is for mk-togglers (version 0.1.0).
+
+@insertcopying
+@end ifnottex
+
+@menu
+* Introduction::                What is mk-togglers?
+* Installation::                How to install mk-togglers
+* Quick Start::                 Get started in 5 minutes
+* Concepts::                    Understanding how togglers work
+* Macro Reference::             Complete API documentation
+* Examples::                    Real-world usage examples
+* Troubleshooting::             Common problems and solutions
+* Index::                       Complete index
+@end menu
+
+@node Introduction
+@chapter Introduction
+
+mk-togglers provides a set of macros for creating intelligent buffer
+togglers with memory and context awareness.
+
+Unlike simple show/hide commands, these togglers remember where you came
+from, intelligently find or create buffers, and provide extensive
+customization hooks for controlling behavior at every stage of the toggle
+lifecycle.
+
+Think of it as a smart light switch with memory---press once to show a
+buffer, press again to hide it and return exactly where you were.
+
+@section Features
+
+@itemize @bullet
+@item
+@strong{Context Memory}: Each toggled buffer remembers which buffer you
+were in when you opened it
+
+@item
+@strong{Smart Buffer Management}: Automatically finds existing buffers or
+creates new ones
+
+@item
+@strong{Multiple Specialized Togglers}: Pre-built macros for buffers,
+files, directories, and terminals
+
+@item
+@strong{Remote-Aware}: Terminal togglers intelligently handle remote
+(TRAMP) connections
+
+@item
+@strong{Extensive Customization}: Hook into every phase of the toggle
+lifecycle (before/after show/hide/make)
+
+@item
+@strong{Flexible Display Control}: Customize how and where buffers appear
+using Emacs display actions
+@end itemize
+
+@node Installation
+@chapter Installation
+
+@section Manual Installation
+
+@enumerate
+@item
+Clone this repository or download @file{mk-togglers.el}:
+
+@example
+git clone https://github.com/yourusername/mk-togglers.git
+@end example
+
+@item
+Add to your Emacs configuration:
+
+@lisp
+(add-to-list 'load-path "/path/to/mk-togglers")
+(require 'mk-togglers)
+@end lisp
+@end enumerate
+
+@section Using use-package
+
+@lisp
+(use-package mk-togglers
+  :load-path "/path/to/mk-togglers")
+@end lisp
+
+@node Quick Start
+@chapter Quick Start
+
+This chapter will get you up and running with mk-togglers in 5 minutes.
+
+@section Toggle a Buffer
+
+Create a toggler for the scratch buffer:
+
+@lisp
+(mk/buffer-toggler my-scratch-toggle "*scratch*")
+(global-set-key (kbd "C-c s") 'my-scratch-toggle)
+@end lisp
+
+@noindent
+Usage:
+@itemize @bullet
+@item First press: Opens @code{*scratch*}
+@item Second press: Returns to previous buffer
+@item Third press: Back to @code{*scratch*}
+@end itemize
+
+@section Toggle a File
+
+Create a toggler for your TODO file:
+
+@lisp
+(mk/file-toggler my-todo-toggle "~/org/todo.org")
+(global-set-key (kbd "C-c t") 'my-todo-toggle)
+@end lisp
+
+@section Toggle a Directory
+
+Create a toggler for your projects directory:
+
+@lisp
+(mk/dired-toggler my-projects-toggle "~/projects/")
+(global-set-key (kbd "C-c p") 'my-projects-toggle)
+@end lisp
+
+@section Toggle a Terminal
+
+Create a toggler for a terminal in current directory:
+
+@lisp
+(mk/term-toggler my-term-toggle default-directory)
+(global-set-key (kbd "C-c C-t") 'my-term-toggle)
+@end lisp
+
+@node Concepts
+@chapter Core Concepts
+
+This chapter explains the fundamental concepts behind mk-togglers.
+
+@section The Toggle Lifecycle
+
+Every toggle operation goes through these phases:
+
+@enumerate
+@item
+@strong{HIDE CHECK}: Am I looking at the toggle buffer?
+@itemize @bullet
+@item YES @result{} HIDE it and return to previous buffer
+@item NO @result{} Continue to next phase
+@end itemize
+
+@item
+@strong{FIND}: Does the buffer already exist?
+@itemize @bullet
+@item Found buffer @result{} Continue to SHOW
+@end itemize
+
+@item
+@strong{SHOW CHECK}: Should I show the existing buffer?
+@itemize @bullet
+@item YES @result{} SHOW the buffer and store current location
+@item NO @result{} Continue to MAKE
+@end itemize
+
+@item
+@strong{MAKE CHECK}: Should I create a new buffer?
+@itemize @bullet
+@item YES @result{} MAKE the buffer and store current location
+@item NO @result{} Run FALLBACK
+@end itemize
+@end enumerate
+
+@section Buffer-Local Memory
+
+Each toggled buffer stores a buffer-local variable
+@code{_toggler/prev-buffer_} that points to the buffer you were in when
+you opened it. This creates a breadcrumb trail back to your original
+context.
+
+@strong{Important}: Each toggled buffer has its own memory. If you open
+Terminal A from @file{file1.el}, it will always return to @file{file1.el}
+when hidden, even if you manually navigated to it from @file{file2.el}.
+
+@section Variables in Scope
+
+When writing customization expressions, these variables are available:
+
+@table @code
+@item _buf
+The toggle item (buffer name, file path, or directory)
+
+@item _found-buffer
+Result of the find operation (buffer or nil)
+
+@item _prev-buffer_
+The buffer you were in before toggling
+
+@item _new-buffer
+The newly created buffer (available in make phase)
+
+@item _toggler/prev-buffer_
+Buffer-local variable storing the return destination
+@end table
+
+@node Macro Reference
+@chapter Macro Reference
+
+This chapter provides complete documentation for all macros.
+
+@menu
+* mk/toggler::                  The foundational macro
+* mk/buffer-toggler::           Toggle named buffers
+* mk/dired-toggler::            Toggle directory browsers
+* mk/file-toggler::             Toggle specific files
+* mk/term-toggler::             Toggle terminal buffers
+@end menu
+
+@node mk/toggler
+@section mk/toggler
+
+@findex mk/toggler
+@cindex toggle, core macro
+
+@lisp
+(mk/toggler NAME TOGGLE-ITEM &rest KEYWORD-ARGS)
+@end lisp
+
+The foundational macro that all other togglers build upon.
+
+@strong{Parameters}:
+
+@table @var
+@item NAME
+Symbol name for the generated function
+
+@item TOGGLE-ITEM
+Default value for the buffer/file/directory to toggle
+
+@item KEYWORD-ARGS
+Extensive customization options (see below)
+@end table
+
+@subsection Hide Phase
+
+@table @code
+@item :hide-if
+Condition to determine if we should hide.
+@*Default: @code{(equal _buf (buffer-name))}
+
+@item :before-hide
+Code to run before hiding.
+@*Default: @code{(ignore)}
+
+@item :hide-form
+How to perform the hide action.
+@*Default: Complex expression that switches to previous buffer
+
+@item :after-hide
+Code to run after successful hide.
+@*Default: @code{(always)}
+
+@item :hide-failed
+Code to run if hide fails.
+
+@item :with-hide-let
+Local bindings for hide phase.
+@end table
+
+@subsection Find Phase
+
+@table @code
+@item :find-form
+How to find an existing buffer.
+@*Default: @code{(get-buffer _buf)}
+@end table
+
+@subsection Show Phase
+
+@table @code
+@item :show-if
+Condition to show existing buffer.
+@*Default: @code{_found-buffer}
+
+@item :before-show
+Code to run before showing.
+
+@item :show-form
+How to show the buffer.
+@*Default: @code{(pop-to-buffer _found-buffer)}
+
+@item :after-show
+Code to run after successful show.
+
+@item :show-failed
+Code to run if show fails.
+
+@item :with-show-let
+Local bindings for show phase.
+
+@item :with-buffer
+Code to run in shown buffer context.
+@end table
+
+@subsection Make Phase
+
+@table @code
+@item :make-if
+Condition to create new buffer.
+@*Default: @code{(not _found-buffer)}
+
+@item :before-make
+Code to run before creating.
+
+@item :make-form
+How to create the buffer.
+@*Default: @code{(switch-to-buffer _buf)}
+
+@item :after-make
+Code to run after successful creation.
+
+@item :make-failed
+Code to run if creation fails.
+
+@item :with-make-let
+Local bindings for make phase.
+
+@item :with-new-buffer
+Code to run in new buffer context.
+@end table
+
+@subsection Fallback Phase
+
+@table @code
+@item :before-fallback
+Code to run before fallback.
+
+@item :fallback-form
+What to do if all else fails.
+
+@item :after-fallback
+Code to run after fallback.
+
+@item :fallback-failed
+Code to run if fallback fails.
+
+@item :with-fallback-let
+Local bindings for fallback phase.
+@end table
+
+@subsection Global Settings
+
+@table @code
+@item :with-toggle-let
+Global bindings for entire toggle operation.
+
+@item :show-prms
+Display parameters for showing buffers.
+@end table
+
+@subsection Example
+
+@lisp
+(mk/toggler my-scratch-toggle "*scratch*"
+  :after-show (goto-char (point-max))
+  :display-action '((display-buffer-at-bottom)
+                    (window-height . 15)))
+@end lisp
+
+@node mk/buffer-toggler
+@section mk/buffer-toggler
+
+@findex mk/buffer-toggler
+@cindex toggle, buffer
+
+@lisp
+(mk/buffer-toggler NAME BUFFER-NAME &rest KEYWORD-ARGS)
+@end lisp
+
+Simplified macro for toggling named buffers.
+
+@strong{Parameters}:
+
+@table @var
+@item NAME
+Symbol name for the generated function
+
+@item BUFFER-NAME
+Name of buffer to toggle (e.g., @code{"*scratch*"})
+@end table
+
+@strong{Additional Keywords}:
+
+@table @code
+@item :make-form
+How to create buffer.
+@*Default: @code{(switch-to-buffer _buf)}
+
+@item :display-action
+Display action list.
+@*Default: Full-frame, dedicated
+
+@item :with-toggle-let
+Additional global bindings
+@end table
+
+@subsection Display Action Examples
+
+Bottom of frame with 15 lines:
+@lisp
+:display-action '((display-buffer-at-bottom)
+                  (window-height . 15))
+@end lisp
+
+Right sidebar with 80 columns:
+@lisp
+:display-action '((display-buffer-in-side-window)
+                  (side . right)
+                  (window-width . 80))
+@end lisp
+
+Full frame:
+@lisp
+:display-action '((display-buffer-full-frame))
+@end lisp
+
+@subsection Example
+
+@lisp
+(mk/buffer-toggler my-messages-toggle "*Messages*"
+  :display-action '((display-buffer-at-bottom)
+                    (window-height . 10)))
+
+(global-set-key (kbd "C-c m") 'my-messages-toggle)
+@end lisp
+
+@node mk/dired-toggler
+@section mk/dired-toggler
+
+@findex mk/dired-toggler
+@cindex toggle, dired
+@cindex toggle, directory
+
+@lisp
+(mk/dired-toggler NAME DIRECTORY &rest KEYWORD-ARGS)
+@end lisp
+
+Toggle a dired buffer for a specific directory.
+
+@strong{Parameters}:
+
+@table @var
+@item NAME
+Symbol name for the generated function
+
+@item DIRECTORY
+Directory path to toggle
+@end table
+
+@strong{Additional Keywords}:
+
+@table @code
+@item :hide-if
+When to hide.
+@*Default: In dired-mode in matching directory
+
+@item :make-form
+How to create.
+@*Default: @code{(dired _buf)}
+
+@item :display-action
+Display action.
+@*Default: Bottom, dedicated
+@end table
+
+@subsection Example
+
+@lisp
+(mk/dired-toggler my-home-toggle "~/"
+  :display-action '((display-buffer-in-side-window)
+                    (side . left)
+                    (window-width . 40)))
+
+(global-set-key (kbd "C-c h") 'my-home-toggle)
+@end lisp
+
+@node mk/file-toggler
+@section mk/file-toggler
+
+@findex mk/file-toggler
+@cindex toggle, file
+
+@lisp
+(mk/file-toggler NAME FILE-PATH &rest KEYWORD-ARGS)
+@end lisp
+
+Toggle a specific file.
+
+@strong{Parameters}:
+
+@table @var
+@item NAME
+Symbol name for the generated function
+
+@item FILE-PATH
+Path to file to toggle
+@end table
+
+@strong{Additional Keywords}:
+
+@table @code
+@item :hide-if
+When to hide.
+@*Default: Current buffer file matches path
+
+@item :make-form
+How to create.
+@*Default: @code{(find-file _buf)}
+
+@item :display-action
+Display action.
+@*Default: Bottom, dedicated
+@end table
+
+@subsection Example
+
+@lisp
+(mk/file-toggler my-todo-toggle "~/org/todo.org"
+  :after-show (org-overview)
+  :display-action '((display-buffer-at-bottom)
+                    (window-height . 20)))
+
+(global-set-key (kbd "C-c t") 'my-todo-toggle)
+@end lisp
+
+@node mk/term-toggler
+@section mk/term-toggler
+
+@findex mk/term-toggler
+@cindex toggle, terminal
+@cindex toggle, remote
+@cindex TRAMP
+
+@lisp
+(mk/term-toggler NAME DIRECTORY &rest KEYWORD-ARGS)
+@end lisp
+
+Toggle a terminal buffer with intelligent directory and remote host handling.
+
+@strong{Parameters}:
+
+@table @var
+@item NAME
+Symbol name for the generated function
+
+@item DIRECTORY
+Directory for the terminal (use @code{default-directory} for current)
+@end table
+
+@strong{Additional Keywords}:
+
+@table @code
+@item :with-term
+Code to run when switching to existing terminal
+
+@item :with-new-term
+Code to run when creating new terminal
+
+@item :after-make-run
+Shell command to run after creating terminal
+
+@item :before-show-run
+Shell command to run before showing terminal
+
+@item :after-show-run
+Shell command to run after showing terminal
+
+@item :before-hide-run
+Shell command to run before hiding terminal
+
+@item :after-hide-run
+Shell command to run after hiding terminal
+
+@item :display-action
+Display action.
+@*Default: Bottom, dedicated
+@end table
+
+@subsection Remote Host Support
+
+When @var{DIRECTORY} is a TRAMP path:
+@itemize @bullet
+@item Automatically creates SSH connection to remote host
+@item Matches terminals by hostname (not full path)
+@item Sends @command{cd} command to navigate to correct directory
+@item Multiple paths on same host reuse the same terminal
+@end itemize
+
+@subsection Examples
+
+Basic terminal in current directory:
+@lisp
+(mk/term-toggler my-term-toggle default-directory)
+(global-set-key (kbd "C-c C-t") 'my-term-toggle)
+@end lisp
+
+Development terminal with virtual environment:
+@lisp
+(mk/term-toggler my-dev-term "~/projects/myapp/"
+  :after-make-run "source .venv/bin/activate\n"
+  :display-action '((display-buffer-at-bottom)
+                    (window-height . 20)))
+@end lisp
+
+Remote server terminal:
+@lisp
+(mk/term-toggler my-server-term "/ssh:user@@example.com:/var/www/"
+  :after-make-run "cd /var/www && ls -la\n")
+@end lisp
+
+Terminal running ranger file manager:
+@lisp
+(mk/term-toggler my-ranger-toggle default-directory
+  :after-make-run "ranger\n"
+  :display-action '((display-buffer-full-frame)))
+@end lisp
+
+@node Examples
+@chapter Examples
+
+This chapter provides real-world usage examples.
+
+@section Basic Togglers
+
+Quick access to common buffers:
+
+@lisp
+;; Toggle scratch buffer
+(mk/buffer-toggler my/scratch-toggle "*scratch*")
+(global-set-key (kbd "C-c b s") 'my/scratch-toggle)
+
+;; Toggle messages buffer
+(mk/buffer-toggler my/messages-toggle "*Messages*"
+  :display-action '((display-buffer-at-bottom)
+                    (window-height . 10)))
+(global-set-key (kbd "C-c b m") 'my/messages-toggle)
+@end lisp
+
+@section Workflow Togglers
+
+File togglers for quick notes:
+
+@lisp
+;; Daily journal
+(mk/file-toggler my/journal-toggle "~/org/journal.org"
+  :after-show (progn
+                (goto-char (point-max))
+                (insert "\n\n** "
+                        (format-time-string "%Y-%m-%d %H:%M")
+                        "\n"))
+  :display-action '((display-buffer-full-frame)))
+(global-set-key (kbd "C-c j") 'my/journal-toggle)
+
+;; Quick notes file
+(mk/file-toggler my/inbox-toggle "~/org/inbox.org"
+  :display-action '((display-buffer-at-bottom)
+                    (window-height . 20)))
+(global-set-key (kbd "C-c i") 'my/inbox-toggle)
+@end lisp
+
+@section Development Environment
+
+Terminal management:
+
+@lisp
+;; General purpose terminal
+(mk/term-toggler my/term-toggle default-directory
+  :display-action '((display-buffer-at-bottom)
+                    (window-height . 15)))
+(global-set-key (kbd "C-c C-t") 'my/term-toggle)
+
+;; Development terminal (always in project root)
+(mk/term-toggler my/dev-term-toggle "~/projects/myapp/"
+  :with-new-term (keymap-local-set "C-c C-t" 'my/dev-term-toggle)
+  :after-make-run "source .venv/bin/activate\n"
+  :display-action '((display-buffer-at-bottom)
+                    (window-height . 20)))
+(global-set-key (kbd "C-c t d") 'my/dev-term-toggle)
+@end lisp
+
+@section Custom Display
+
+Sidebar togglers:
+
+@lisp
+;; Left sidebar for file browser
+(mk/dired-toggler my/sidebar-dired-toggle default-directory
+  :display-action '((display-buffer-in-side-window)
+                    (side . left)
+                    (slot . -1)
+                    (window-width . 35)))
+(global-set-key (kbd "C-c w l") 'my/sidebar-dired-toggle)
+
+;; Right sidebar for documentation
+(mk/file-toggler my/sidebar-docs-toggle "~/docs/notes.org"
+  :display-action '((display-buffer-in-side-window)
+                    (side . right)
+                    (slot . 1)
+                    (window-width . 80)))
+(global-set-key (kbd "C-c w r") 'my/sidebar-docs-toggle)
+@end lisp
+
+@node Troubleshooting
+@chapter Troubleshooting
+
+This chapter covers common problems and their solutions.
+
+@section Toggle doesn't return to previous buffer
+
+@strong{Problem}: Pressing toggle twice doesn't return you to where you were.
+
+@strong{Solution}: Check if @code{:hide-if} condition is correct. The hide
+condition must properly detect when you're viewing the toggled buffer.
+
+The buffer remembers where it was first opened from. This is by design---each
+toggled buffer has its own memory stored in @code{_toggler/prev-buffer_}.
+
+@section Terminal doesn't change directory
+
+@strong{Problem}: Terminal toggle creates terminal but stays in wrong directory.
+
+@strong{Solution}: Check @code{:after-show} and @code{:with-new-buffer} forms.
+The terminal toggler uses @code{term-send-raw-string} to send @command{cd}
+commands. Make sure the directory path is correct and accessible.
+
+@section Buffer appears in wrong window
+
+@strong{Problem}: Buffer shows up in unexpected location.
+
+@strong{Solution}: Customize @code{:display-action}. Common display actions:
+
+@table @code
+@item display-buffer-in-side-window
+Show in side window (left, right, top, bottom)
+
+@item display-buffer-at-bottom
+Show at bottom of frame
+
+@item display-buffer-full-frame
+Show in full frame
+
+@item display-buffer-use-some-window
+Use any suitable window
+@end table
+
+@section Remote terminal connects to wrong host
+
+@strong{Problem}: Terminal toggler SSHs to unexpected host.
+
+@strong{Solution}: The toggler matches by hostname. If you have multiple
+paths on the same host, it will reuse the same terminal. To force separate
+terminals, customize @code{:find-form} to match by full path instead of
+hostname.
+
+@node Index
+@unnumbered Index
+
+@printindex cp
+
+@bye

@@ -15,3 +15,16 @@ dist/
 
 # Undo-tree save-files
 *.~undo-tree
+
+# Generated documentation
+*.info
+*.pdf
+*.aux
+*.cp
+*.fn
+*.ky
+*.log
+*.pg
+*.toc
+*.tp
+*.vr
