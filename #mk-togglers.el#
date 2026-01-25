@@ -703,9 +703,7 @@ Examples:
 						 (file-remote-p (file-truename default-directory)))
 					    (with-parsed-tramp-file-name (file-truename (or _buf default-directory)) _buf
 					      (with-parsed-tramp-file-name (file-truename default-directory) _def
-						(and _buf-method _buf-user _buf-domain _buf-port _buf-localname _buf-hop
-							_def-method _def-user _def-domain _def-port _def-localname _def-hop
-							(equal _buf-host _def-host))))
+						(equal _buf-host _def-host)))
 					  (equal (file-truename (or _buf default-directory))
 						 (file-truename default-directory))))))
 			       (buffer-list))))
@@ -715,8 +713,7 @@ Examples:
 							   tramp-user
 							   tramp-host
 							   (or tramp-port 22)))
-				      (default-directory temporary-file-directory)
-				      (_ (and tramp-method tramp-domain tramp-localname tramp-hop tramp)))
+				      (default-directory temporary-file-directory))
 				 (vterm)
 				 (current-buffer)))
 			   (let ((default-directory _buf))
@@ -733,21 +730,19 @@ Examples:
 					     "none"))
 				(buffer-name-str (if (file-remote-p _buf)
 						     (with-parsed-tramp-file-name (file-truename _buf) tramp
-						       (let ((_ (and tramp-method tramp-domain tramp-hop tramp)))
-							 (format "*vterm:%s:%s@%s#%s:%s*"
-								 venv-name
-								 tramp-user
-								 tramp-host
-								 (or tramp-port 22)
-								 tramp-localname)))
+						       (format "*vterm:%s:%s@%s#%s:%s*"
+							       venv-name
+							       tramp-user
+							       tramp-host
+							       (or tramp-port 22)
+							       tramp-localname))
 						   (format "*vterm:%s:%s*"
 							   venv-name
 							   (abbreviate-file-name _buf)))))
 			   (rename-buffer buffer-name-str t)
 			   (if (file-remote-p _buf)
 			       (with-parsed-tramp-file-name (file-truename _buf) tramp
-				 (let ((_ (and tramp-method tramp-user tramp-domain tramp-host tramp-port tramp-hop tramp)))
-				   (vterm-send-string (format "cd %s\n" tramp-localname))))
+				 (vterm-send-string (format "cd %s\n" tramp-localname)))
 			     (when venv-path
 			       (vterm-send-string
 				(format "source %s/bin/activate\n" venv-path))))
@@ -816,8 +811,7 @@ See `mk/vterm-toggler' for the public interface and usage examples."
 				       (process-live-p vterm--process))
 				  (if (file-remote-p _buf)
 				      (with-parsed-tramp-file-name (file-truename _buf) tramp
-					(let ((_ (and tramp-method tramp-user tramp-domain tramp-host tramp-port tramp-hop tramp)))
-					  (vterm-send-string (format "cd %s\n" tramp-localname))))
+					(vterm-send-string (format "cd %s\n" tramp-localname)))
 				    (progn
 				      (vterm-send-string (format "cd %s\n" _buf))
 				      (when-let ((venv-path (or
@@ -945,3 +939,5 @@ Examples:
 ;;; mk-togglers.el ends here
 
 
+(mk/vterm-toggler my-vterm-toggle default-directory)
+(global-set-key (kbd "C-c v") 'my-vterm-toggle)
