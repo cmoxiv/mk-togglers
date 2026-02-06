@@ -944,4 +944,18 @@ Examples:
 
 ;;; mk-togglers.el ends here
 
-
+(progn					; DO NOT DELETE
+  (setq debug-on-error t)
+  (define-key global-map (kbd "C-z")
+    (mk/vterm-toggler my/toggle-bash-term default-directory
+		      :with-new-vterm		'(
+						  ;; (keymap-set vterm-mode-map "C-z" #'delete-window)
+						  (keymap-local-set "C-z" #'delete-window)
+						  (keymap-local-set "s-v" #'term-paste))
+		      :display-action		'((display-buffer-reuse-window
+						   display-buffer-in-side-window)
+						  (side . bottom)
+						  (slot . -1)
+						  (window-width . .5)
+						  (window-height . .4)
+						  (dedicated . t)))))

@@ -703,7 +703,9 @@ Examples:
 						 (file-remote-p (file-truename default-directory)))
 					    (with-parsed-tramp-file-name (file-truename (or _buf default-directory)) _buf
 					      (with-parsed-tramp-file-name (file-truename default-directory) _def
-						(equal _buf-host _def-host)))
+						(and _buf-method _buf-user _buf-domain _buf-port _buf-localname _buf-hop
+							_def-method _def-user _def-domain _def-port _def-localname _def-hop
+							(equal _buf-host _def-host))))
 					  (equal (file-truename (or _buf default-directory))
 						 (file-truename default-directory))))))
 			       (buffer-list))))
@@ -713,7 +715,8 @@ Examples:
 							   tramp-user
 							   tramp-host
 							   (or tramp-port 22)))
-				      (default-directory temporary-file-directory))
+				      (default-directory temporary-file-directory)
+				      (_ (and tramp-method tramp-domain tramp-localname tramp-hop tramp)))
 				 (vterm)
 				 (current-buffer)))
 			   (let ((default-directory _buf))
@@ -730,19 +733,21 @@ Examples:
 					     "none"))
 				(buffer-name-str (if (file-remote-p _buf)
 						     (with-parsed-tramp-file-name (file-truename _buf) tramp
-						       (format "*vterm:%s:%s@%s#%s:%s*"
-							       venv-name
-							       tramp-user
-							       tramp-host
-							       (or tramp-port 22)
-							       tramp-localname))
+						       (let ((_ (and tramp-method tramp-domain tramp-hop tramp)))
+							 (format "*vterm:%s:%s@%s#%s:%s*"
+								 venv-name
+								 tramp-user
+								 tramp-host
+								 (or tramp-port 22)
+								 tramp-localname)))
 						   (format "*vterm:%s:%s*"
 							   venv-name
 							   (abbreviate-file-name _buf)))))
 			   (rename-buffer buffer-name-str t)
 			   (if (file-remote-p _buf)
 			       (with-parsed-tramp-file-name (file-truename _buf) tramp
-				 (vterm-send-string (format "cd %s\n" tramp-localname)))
+				 (let ((_ (and tramp-method tramp-user tramp-domain tramp-host tramp-port tramp-hop tramp)))
+				   (vterm-send-string (format "cd %s\n" tramp-localname))))
 			     (when venv-path
 			       (vterm-send-string
 				(format "source %s/bin/activate\n" venv-path))))
@@ -811,7 +816,8 @@ See `mk/vterm-toggler' for the public interface and usage examples."
 				       (process-live-p vterm--process))
 				  (if (file-remote-p _buf)
 				      (with-parsed-tramp-file-name (file-truename _buf) tramp
-					(vterm-send-string (format "cd %s\n" tramp-localname)))
+					(let ((_ (and tramp-method tramp-user tramp-domain tramp-host tramp-port tramp-hop tramp)))
+					  (vterm-send-string (format "cd %s\n" tramp-localname))))
 				    (progn
 				      (vterm-send-string (format "cd %s\n" _buf))
 				      (when-let ((venv-path (or
@@ -939,5 +945,329 @@ Examples:
 ;;; mk-togglers.el ends here
 
 
-(mk/vterm-toggler my-vterm-toggle default-directory)
-(global-set-key (kbd "C-c v") 'my-vterm-toggle)
+(define-key global-map (kbd "C-z")
+  (cl-defun my/toggle-bash-term (&optional (_buf default-directory))
+    (interactive) (let*
+		      ((_ nil)
+		       (_found-buffer
+			(car
+			 (seq-filter
+			  (lambda (bf)
+			    (with-current-buffer bf
+			      (and (derived-mode-p 'vterm-mode)
+				   (string-match-p "^\\*vterm:"
+						   (buffer-name))
+				   (if
+				    (and
+				     (file-remote-p
+				      (file-truename
+				       (or _buf default-directory)))
+				     (file-remote-p
+				      (file-truename default-directory)))
+				    (with-parsed-tramp-file-name
+					(file-truename
+					 (or _buf default-directory))
+					_buf
+				      (with-parsed-tramp-file-name
+					  (file-truename
+					   default-directory)
+					  _def
+					(and _buf-method _buf-user
+					     _buf-domain _buf-port
+					     _buf-localname _buf-hop
+					     _def-method _def-user
+					     _def-domain _def-port
+					     _def-localname _def-hop
+					     (equal _buf-host
+						    _def-host))))
+				    (equal
+				     (file-truename
+				      (or _buf default-directory))
+				     (file-truename
+				      default-directory))))))
+			  (buffer-list))))
+		       (display-buffer-overriding-action
+			'((display-buffer-reuse-window
+			   display-buffer-in-side-window)
+			  (side . bottom) (slot . -1)
+			  (window-width . 0.5) (window-height . 0.4)
+			  (dedicated . t))))
+		    (if (derived-mode-p 'vterm-mode)
+			(let* ((_ nil))
+			  (if
+			   (progn
+			     (when
+				 (and (boundp 'vterm--process)
+				      vterm--process
+				      (process-live-p vterm--process))
+			       (unless (string= "" "")
+				 (vterm-send-string "")))
+			     (or
+			      (and (one-window-p)
+				   (switch-to-buffer
+				    (or
+				     (bound-and-true-p
+				      _toggler/prev-buffer_)
+				     (other-buffer))))
+			      (let ((win (get-buffer-window)))
+				(pop-to-buffer
+				 (or
+				  (bound-and-true-p
+				   _toggler/prev-buffer_)
+				  (other-buffer)))
+				(not (delete-window win)))))
+			   (progn
+			     (when
+				 (and (boundp 'vterm--process)
+				      vterm--process
+				      (process-live-p vterm--process))
+			       (unless (string= "" "")
+				 (vterm-send-string ""))))
+			   (message
+			    "[mk/toggler] Failed to hide buffer!!")
+			   nil))
+			(let ((_prev-buffer_ (current-buffer)))
+			  (if _found-buffer (let* ((_ nil))
+					      (if-let
+						  ((_found-buffer
+						    (progn
+						      (when
+							  (and
+							   (boundp
+							    'vterm--process)
+							   vterm--process
+							   (process-live-p
+							    vterm--process))
+							(unless
+							    (string=
+							     "" "")
+							  (vterm-send-string
+							   "")))
+						      (pop-to-buffer
+						       _found-buffer))))
+						  (with-current-buffer
+						      _found-buffer
+						    (setq-local
+						     _toggler/prev-buffer_
+						     _prev-buffer_)
+						    (ignore) (when
+								 (and
+								  (boundp
+								   'vterm--process)
+								  vterm--process
+								  (process-live-p
+								   vterm--process))
+							       (if
+								(file-remote-p
+								 _buf)
+								(with-parsed-tramp-file-name
+								    (file-truename
+								     _buf)
+								    tramp
+								  (let
+								      ((_
+									(and
+									 tramp-method
+									 tramp-user
+									 tramp-domain
+									 tramp-host
+									 tramp-port
+									 tramp-hop
+									 tramp)))
+								    (vterm-send-string
+								     (format
+								      "cd %s
+"
+								      tramp-localname))))
+								(progn
+								  (vterm-send-string
+								   (format
+								    "cd %s
+"
+								    _buf))
+								  (when-let
+								      ((venv-path
+									(or
+									 (bound-and-true-p
+									  pyvenv-virtual-env)
+									 (let
+									     ((venv-dir
+									       (expand-file-name
+										".venv"
+										_buf)))
+									   (when
+									       (file-directory-p
+										venv-dir)
+									     venv-dir)))))
+								    (vterm-send-string
+								     (format
+								      "source %s/bin/activate
+"
+								      venv-path)))))
+							       (unless
+								   (string=
+								    ""
+								    "")
+								 (vterm-send-string
+								  ""))
+							       (always)))
+						(message
+						 "[mk/toggler] Failed to show buffer!!")
+						nil))
+			      (if (not _found-buffer) (let* ((_ nil))
+							(if-let
+							    ((_new-buffer
+							      (progn
+								(ignore)
+								(if
+								 (file-remote-p
+								  _buf)
+								 (with-parsed-tramp-file-name
+								     (file-truename
+								      _buf)
+								     tramp
+								   (let*
+								       ((vterm-shell
+									 (format
+									  "ssh %s@%s -p%s -Y"
+									  tramp-user
+									  tramp-host
+									  (or
+									   tramp-port
+									   22)))
+									(default-directory
+									 temporary-file-directory)
+									(_
+									 (and
+									  tramp-method
+									  tramp-domain
+									  tramp-localname
+									  tramp-hop
+									  tramp)))
+								     (vterm)
+								     (current-buffer)))
+								 (let
+								     ((default-directory
+								       _buf))
+								   (vterm)
+								   (current-buffer))))))
+							    (with-current-buffer
+								_new-buffer
+							      (setq-local
+							       _toggler/prev-buffer_
+							       _prev-buffer_)
+							      (when
+								  (and
+								   (boundp
+								    'vterm--process)
+								   vterm--process
+								   (process-live-p
+								    vterm--process))
+								(unless
+								    (string=
+								     ""
+								     "")
+								  (vterm-send-string
+								   "")))
+							      (let*
+								  ((venv-path
+								    (or
+								     (bound-and-true-p
+								      pyvenv-virtual-env)
+								     (let
+									 ((venv-dir
+									   (expand-file-name
+									    ".venv"
+									    _buf)))
+								       (when
+									   (file-directory-p
+									    venv-dir)
+									 venv-dir))))
+								   (venv-name
+								    (if
+								     venv-path
+								     (file-name-nondirectory
+								      (directory-file-name
+								       venv-path))
+								     "none"))
+								   (buffer-name-str
+								    (if
+								     (file-remote-p
+								      _buf)
+								     (with-parsed-tramp-file-name
+									 (file-truename
+									  _buf)
+									 tramp
+								       (let
+									   ((_
+									     (and
+									      tramp-method
+									      tramp-domain
+									      tramp-hop
+									      tramp)))
+									 (format
+									  "*vterm:%s:%s@%s#%s:%s*"
+									  venv-name
+									  tramp-user
+									  tramp-host
+									  (or
+									   tramp-port
+									   22)
+									  tramp-localname)))
+								     (format
+								      "*vterm:%s:%s*"
+								      venv-name
+								      (abbreviate-file-name
+								       _buf)))))
+								(rename-buffer
+								 buffer-name-str
+								 t)
+								(if
+								 (file-remote-p
+								  _buf)
+								 (with-parsed-tramp-file-name
+								     (file-truename
+								      _buf)
+								     tramp
+								   (let
+								       ((_
+									 (and
+									  tramp-method
+									  tramp-user
+									  tramp-domain
+									  tramp-host
+									  tramp-port
+									  tramp-hop
+									  tramp)))
+								     (vterm-send-string
+								      (format
+								       "cd %s
+"
+								       tramp-localname))))
+								 (when
+								     venv-path
+								   (vterm-send-string
+								    (format
+								     "source %s/bin/activate
+"
+								     venv-path))))
+								,with-new-vterm))
+							  (message
+							   "[mk/toggler] Failed to make buffer!!")
+							  nil))
+				  (let* ((_ nil))
+				    (if (progn (ignore) (ignore))
+					(always)
+					(message
+					 "[mk/toggler] Fallback failed!!")))))))))(mk/vterm-toggler my/toggle-bash-term default-directory
+		      :with-new-term		(progn
+						  ;; (keymap-set vterm-mode-map "C-z" #'delete-window)
+						  (keymap-local-set "C-z" #'delete-window)
+						  (keymap-local-set "s-v" #'term-paste))
+		    :display-action		'((display-buffer-reuse-window
+						   display-buffer-in-side-window)
+						  (side . bottom)
+						  (slot . -1)
+						  (window-width . .5)
+						  (window-height . .4)
+						  (dedicated . t))))
